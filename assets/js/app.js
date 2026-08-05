@@ -55,9 +55,25 @@
   const num = value => Number.isFinite(Number(value)) ? Number(value) : 0;
   const unique = values => [...new Set(values.filter(v => text(v) !== ''))].sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'}));
   const by = (arr, key, value) => arr.filter(x => x?.[key] === value);
-  const compactNumber = value => new Intl.NumberFormat('en', {notation:'compact', maximumFractionDigits:1}).format(num(value));
-  const fullNumber = value => new Intl.NumberFormat('en-US', {maximumFractionDigits:2}).format(num(value));
-  const money = value => `৳${compactNumber(value)}`;
+  const bdCompactNumber = value => {
+    const n = num(value);
+    const absoluteValue = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    const scaled = divisor => new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 1
+    }).format(absoluteValue / divisor);
+
+    if (absoluteValue >= 10000000) return `${sign}${scaled(10000000)} Cr`;
+    if (absoluteValue >= 100000) return `${sign}${scaled(100000)} Lac`;
+    if (absoluteValue >= 1000) return `${sign}${scaled(1000)} K`;
+
+    return `${sign}${new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 2
+    }).format(absoluteValue)}`;
+  };
+  const compactNumber = value => bdCompactNumber(value);
+  const fullNumber = value => bdCompactNumber(value);
+  const money = value => `৳${bdCompactNumber(value)}`;
   const pct = value => value == null ? '—' : `${num(value).toFixed(1)}%`;
   const dateFmt = value => {
     if (!value) return 'Not generated';
