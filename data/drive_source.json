@@ -1,0 +1,9 @@
+{
+  "provider": "Google Drive",
+  "folder_name": "Item Dashboard performance workbooks",
+  "folder_id": "111qtlTIgOpvuYK7G4B_xrA8hRBpwjcj_",
+  "folder_url": "https://drive.google.com/drive/folders/111qtlTIgOpvuYK7G4B_xrA8hRBpwjcj_",
+  "expected_file_count": 11,
+  "strict_file_count": false,
+  "allowed_extensions": [".xlsx"]
+}

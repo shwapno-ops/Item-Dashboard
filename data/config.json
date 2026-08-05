@@ -1,0 +1,8 @@
+{
+  "dashboard_title": "Shwapno Item Performance Dashboard",
+  "comparison_label_this": "This Year",
+  "comparison_label_last": "Last Year",
+  "default_metric": "sales",
+  "currency": "BDT",
+  "timezone": "Asia/Dhaka"
+}
