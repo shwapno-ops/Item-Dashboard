@@ -65,7 +65,7 @@
 
     if (absoluteValue >= 10000000) return `${sign}${scaled(10000000)} Cr`;
     if (absoluteValue >= 100000) return `${sign}${scaled(100000)} Lac`;
-    if (absoluteValue >= 1000) return `${sign}${scaled(1000)} K`;
+    if (absoluteValue >= 10000) return `${sign}${scaled(1000)} K`;
 
     return `${sign}${new Intl.NumberFormat('en-US', {
       maximumFractionDigits: 2
@@ -618,6 +618,334 @@
   function exportCurrent(){const first=[...runtimeTables.keys()][0];if(first)exportTable(first);else showToast('This page has no exportable table.');}
   function showToast(message){const t=el('toast');t.textContent=message;t.hidden=false;clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>t.hidden=true,2600);}
   function clearGlobalFilters(){Object.assign(state,{regional:ALL,zone:ALL,outlet:ALL,division:ALL,cat01:ALL,cat03:ALL,viewStatus:ALL});state.tableState={};renderAll();}
+
+
+
+  /* EXECUTIVE_SIDEBAR_FILTERS_V3_20260806
+     - OR within one filter
+     - AND between filters
+     - each filter's options are constrained by every other active filter
+     - hierarchy tables are seeded from the July Zone Distribution master
+  */
+  state.multi ||= {regional:[], zone:[], outlet:[], division:[], cat01:[], cat03:[]};
+  const DASHBOARD_MULTI_KEYS_V3 = ['regional','zone','outlet','division','cat01','cat03'];
+  const DASHBOARD_FIELD_MAP_V3 = {
+    regional:'regional_key', zone:'zone_key', outlet:'outlet_code',
+    division:'division', cat01:'cat01', cat03:'cat03'
+  };
+  const DASHBOARD_FILTER_META_V3 = {
+    regional:{label:'Regional Head', all:'All Regional Heads'},
+    zone:{label:'Zonal Name', all:'All Zones'},
+    outlet:{label:'Outlet', all:'All Outlets'},
+    division:{label:'Division', all:'All Divisions'},
+    cat01:{label:'Cat 01', all:'All Cat 01'},
+    cat03:{label:'Cat 03', all:'All Cat 03'}
+  };
+
+  function selectedValuesV3(key){return Array.isArray(state.multi?.[key]) ? state.multi[key] : [];}
+  function hasSelectionV3(key){return selectedValuesV3(key).length > 0;}
+  function anyHierarchySelectionV3(){return ['regional','zone','outlet'].some(hasSelectionV3);}
+  function anyProductSelectionV3(){return ['division','cat01','cat03'].some(hasSelectionV3);}
+  function matchesSelectionV3(key,value){const values=selectedValuesV3(key);return !values.length || values.includes(String(value ?? ''));}
+  function syncScalarFiltersV3(){
+    DASHBOARD_MULTI_KEYS_V3.forEach(key=>{const values=selectedValuesV3(key);state[key]=values.length===1?values[0]:ALL;});
+  }
+  function dashboardUniverseV3(){
+    const categories=(state.data?.categories||[]).map(r=>({
+      regional_key:r.regional_key||'', zone_key:r.zone_key||'', outlet_code:r.outlet_code||'',
+      division:r.division||'', cat01:r.cat01||'', cat03:r.cat03||''
+    }));
+    const master=(state.data?.outlets||[]).map(o=>({
+      regional_key:o.regional_key||'', zone_key:o.zone_key||'', outlet_code:o.outlet_code||'',
+      division:'', cat01:'', cat03:''
+    }));
+    return categories.concat(master);
+  }
+  function rowMatchesSelectionsV3(row,ignoreKey=''){
+    return DASHBOARD_MULTI_KEYS_V3.every(key=>key===ignoreKey || matchesSelectionV3(key,row?.[DASHBOARD_FIELD_MAP_V3[key]]));
+  }
+  function availableValuesV3(key){
+    const field=DASHBOARD_FIELD_MAP_V3[key];
+    return unique(dashboardUniverseV3().filter(r=>rowMatchesSelectionsV3(r,key)).map(r=>String(r?.[field]??'')).filter(Boolean));
+  }
+  function optionLabelV3(key,value){
+    value=String(value??'');
+    if(key==='regional'){
+      const r=(state.data?.regions||[]).find(x=>String(x.regional_key)===value);
+      return r ? (r.regional_name || r.regional_id || value) : value;
+    }
+    if(key==='zone'){
+      const z=(state.data?.zones||[]).find(x=>String(x.zone_key)===value);
+      return z ? (z.zonal_name || z.zonal_id || value) : value;
+    }
+    if(key==='outlet'){
+      const o=(state.data?.outlets||[]).find(x=>String(x.outlet_code)===value);
+      return o ? `${o.outlet_code} — ${o.outlet_name || ''}` : value;
+    }
+    return value;
+  }
+  function selectionSummaryV3(key){
+    const values=selectedValuesV3(key),meta=DASHBOARD_FILTER_META_V3[key];
+    if(!values.length)return meta.all;
+    if(values.length===1)return optionLabelV3(key,values[0]);
+    return `${values.length} selected`;
+  }
+  function reconcileSelectionsV3(preferredKey=''){
+    let changed=true,guard=0;
+    const keys=preferredKey?DASHBOARD_MULTI_KEYS_V3.filter(key=>key!==preferredKey):DASHBOARD_MULTI_KEYS_V3;
+    while(changed&&guard<6){
+      changed=false;guard++;
+      keys.forEach(key=>{
+        const allowed=new Set(availableValuesV3(key));
+        const kept=selectedValuesV3(key).filter(v=>allowed.has(String(v)));
+        if(kept.length!==selectedValuesV3(key).length){state.multi[key]=kept;changed=true;}
+      });
+    }
+    syncScalarFiltersV3();
+  }
+  function filterOptionsHtmlV3(key){
+    const selected=new Set(selectedValuesV3(key));
+    const values=unique([...availableValuesV3(key),...selected]);
+    if(!values.length)return '<div class="sidebar-filter-empty">No options under the other active filters.</div>';
+    return values.map(value=>{
+      const label=optionLabelV3(key,value);
+      return `<label class="sidebar-filter-option" data-option-search="${esc(label.toLowerCase())}"><input type="checkbox" value="${esc(value)}" ${selected.has(String(value))?'checked':''}><span>${esc(label)}</span></label>`;
+    }).join('');
+  }
+  function filterControlHtmlV3(key){
+    const meta=DASHBOARD_FILTER_META_V3[key];
+    return `<details class="sidebar-filter" data-filter-details="${key}">
+      <summary><span>${esc(meta.label)}</span><strong>${esc(selectionSummaryV3(key))}</strong></summary>
+      <div class="sidebar-filter-menu">
+        <input class="sidebar-filter-search" data-multi-search="${key}" type="search" placeholder="Search ${esc(meta.label)}…">
+        <div class="sidebar-filter-options">${filterOptionsHtmlV3(key)}</div>
+        <div class="sidebar-filter-actions">
+          <button class="sidebar-filter-link" data-multi-visible="all" type="button">Select visible</button>
+          <button class="sidebar-filter-link" data-multi-visible="none" type="button">Deselect all</button>
+          <span></span>
+          <button class="btn btn-small btn-secondary" data-multi-clear="${key}" type="button">Clear</button>
+          <button class="btn btn-small btn-primary" data-multi-apply="${key}" type="button">Apply</button>
+        </div>
+      </div>
+    </details>`;
+  }
+
+  filteredZones = function(){
+    return (state.data?.zones||[]).filter(z=>matchesSelectionV3('regional',z.regional_key)&&matchesSelectionV3('zone',z.zone_key));
+  };
+  filteredOutletsBase = function(){
+    return (state.data?.outlets||[]).filter(o=>
+      matchesSelectionV3('regional',o.regional_key)&&matchesSelectionV3('zone',o.zone_key)&&matchesSelectionV3('outlet',o.outlet_code)
+    );
+  };
+  categoryRows = function(){
+    return (state.data?.categories||[]).filter(r=>rowMatchesSelectionsV3(r));
+  };
+  hierarchyFilteredOutlets = function(){
+    let rows=filteredOutletsBase();
+    if(anyProductSelectionV3()){
+      const allowed=new Set(categoryRows().map(r=>String(r.outlet_code||'')));
+      rows=rows.filter(o=>allowed.has(String(o.outlet_code||'')));
+    }
+    return rows;
+  };
+  renderFilterBar = function(){
+    reconcileSelectionsV3();
+    el('filterBar').innerHTML=`
+      <div class="sidebar-filter-title"><span>Dashboard Filters</span><small>OR within one filter · AND between filters</small></div>
+      <div class="filter-group sidebar-metric-filter"><label>Metric</label><select data-filter="metric">${Object.entries(METRICS).map(([k,v])=>`<option value="${k}" ${state.metric===k?'selected':''}>${esc(v.label)}</option>`).join('')}</select></div>
+      ${filterControlHtmlV3('regional')}
+      ${filterControlHtmlV3('zone')}
+      ${filterControlHtmlV3('outlet')}
+      ${filterControlHtmlV3('division')}
+      ${filterControlHtmlV3('cat01')}
+      ${filterControlHtmlV3('cat03')}
+      ${state.viewStatus!==ALL?`<span class="filter-chip sidebar-status-chip">Status: ${esc(statusLabel(state.viewStatus))}<button data-clear-status type="button">×</button></span>`:''}
+    `;
+  };
+  selectedMetric = function(){
+    const anyFilter=DASHBOARD_MULTI_KEYS_V3.some(hasSelectionV3);
+    if(!anyFilter)return entityMetric(state.data.overall,state.metric);
+    if((state.data?.categories||[]).length)return aggregateMetricFromRows(categoryRows());
+    const totals=hierarchyFilteredOutlets().reduce((acc,o)=>{const m=entityMetric(o);acc.this+=num(m.this);acc.last+=num(m.last);return acc;},{this:0,last:0});
+    return metricResult(totals.this,totals.last);
+  };
+  function scopedCoverageCodesV3(){
+    if((state.data?.categories||[]).length)return new Set(categoryRows().map(r=>String(r.outlet_code||'')).filter(Boolean));
+    return new Set(hierarchyFilteredOutlets().filter(o=>o.has_performance).map(o=>String(o.outlet_code||'')));
+  }
+  function aggregateHierarchyV3(level,metric=state.metric,applyStatus=true){
+    const rows=categoryRows();
+    const scopeOutlets=hierarchyFilteredOutlets();
+    const activeDashboardFilters=DASHBOARD_MULTI_KEYS_V3.some(hasSelectionV3);
+    const allowedRegions=new Set(scopeOutlets.map(o=>String(o.regional_key||'')));
+    const allowedZones=new Set(scopeOutlets.map(o=>String(o.zone_key||'')));
+    let base=[];
+    if(level==='region'){
+      base=(state.data?.regions||[]).filter(r=>matchesSelectionV3('regional',r.regional_key));
+      if(activeDashboardFilters)base=base.filter(r=>allowedRegions.has(String(r.regional_key||'')));
+    }else if(level==='zone'){
+      base=(state.data?.zones||[]).filter(z=>matchesSelectionV3('regional',z.regional_key)&&matchesSelectionV3('zone',z.zone_key));
+      if(activeDashboardFilters)base=base.filter(z=>allowedZones.has(String(z.zone_key||'')));
+    }else base=scopeOutlets;
+
+    const sums=new Map();
+    rows.forEach(r=>{
+      const key=level==='region'?r.regional_key:level==='zone'?r.zone_key:r.outlet_code;
+      if(!key)return;
+      if(!sums.has(key))sums.set(key,[0,0,0,0,0,0,0,0]);
+      (r.values||[]).forEach((v,i)=>sums.get(key)[i]+=num(v));
+    });
+
+    const coverageCodes=scopedCoverageCodesV3();
+    const counts=new Map();
+    scopeOutlets.forEach(o=>{
+      const key=level==='region'?o.regional_key:level==='zone'?o.zone_key:o.outlet_code;
+      if(!key)return;
+      if(!counts.has(key))counts.set(key,{outlet_count:0,active_outlet_count:0,performance_outlet_count:0});
+      const c=counts.get(key);
+      c.outlet_count++;
+      if(o.is_active!==false)c.active_outlet_count++;
+      if(coverageCodes.has(String(o.outlet_code||'')))c.performance_outlet_count++;
+    });
+
+    const result=base.map(entity=>{
+      const key=level==='region'?entity.regional_key:level==='zone'?entity.zone_key:entity.outlet_code;
+      const metricValue=(state.data?.categories||[]).length ? rawMetric(sums.get(key)||[0,0,0,0,0,0,0,0],metric) : entityMetric(entity,metric);
+      const c=counts.get(key)||{
+        outlet_count:level==='outlet'?1:0,
+        active_outlet_count:level==='outlet'&&entity.is_active!==false?1:0,
+        performance_outlet_count:level==='outlet'&&entity.has_performance?1:0
+      };
+      return {...entity,...c,_metric:metricValue};
+    });
+    if(!applyStatus||state.viewStatus===ALL)return result;
+    return result.filter(r=>state.viewStatus==='degrowth'?['degrowth','inactive'].includes(r._metric.status):r._metric.status===state.viewStatus);
+  }
+  hierarchyRows = function(level){return aggregateHierarchyV3(level,state.metric,true);};
+  performanceCounts = function(){
+    const rows=aggregateHierarchyV3('outlet',state.metric,false);
+    const counts={growth:0,degrowth:0,flat:0,new:0,inactive:0,active:0,total:rows.length,withData:0};
+    rows.forEach(o=>{const m=o._metric;counts[m.status]=(counts[m.status]||0)+1;counts.active+=num(o.active_outlet_count);counts.withData+=num(o.performance_outlet_count);});
+    return counts;
+  };
+  coveragePanel = function(){
+    const rows=aggregateHierarchyV3('outlet',state.metric,false);
+    const active=rows.reduce((sum,r)=>sum+num(r.active_outlet_count),0);
+    const covered=rows.reduce((sum,r)=>sum+num(r.performance_outlet_count),0);
+    const regionCount=new Set(rows.map(r=>String(r.regional_key||'')).filter(Boolean)).size;
+    const zoneCount=new Set(rows.map(r=>String(r.zone_key||'')).filter(Boolean)).size;
+    const items=[
+      ['Master outlets',rows.length],
+      ['Active outlets',active],
+      ['Performance outlets',covered],
+      ['Master without performance',Math.max(0,rows.length-covered)],
+      ['Regional Heads',regionCount],
+      ['Zones',zoneCount]
+    ];
+    return `<div class="summary-grid">${items.map(([a,b])=>summaryTile(a,b,'')).join('')}</div>`;
+  };
+  skuRows = function(){
+    if(anyHierarchySelectionV3())return [];
+    return (state.data?.sku_catalog||[]).filter(r=>
+      matchesSelectionV3('division',r.division)&&matchesSelectionV3('cat01',r.cat01)&&matchesSelectionV3('cat03',r.cat03)
+    ).map(r=>({...r,_metric:rawMetric(r.values)}));
+  };
+  currentDriverSet = function(){
+    const drivers=state.data?.sku_drivers||{};
+    if(anyProductSelectionV3())return {positive:[],negative:[],top_sales:[]};
+    const outlets=selectedValuesV3('outlet'),zones=selectedValuesV3('zone'),regions=selectedValuesV3('regional');
+    if(outlets.length===1)return drivers.outlets?.[outlets[0]]||{positive:[],negative:[],top_sales:[]};
+    if(zones.length===1&&!outlets.length)return drivers.zones?.[zones[0]]||{positive:[],negative:[],top_sales:[]};
+    if(regions.length===1&&!zones.length&&!outlets.length)return drivers.regions?.[regions[0]]||{positive:[],negative:[],top_sales:[]};
+    if(outlets.length||zones.length||regions.length)return {positive:[],negative:[],top_sales:[]};
+    return drivers.overall||{positive:[],negative:[],top_sales:[]};
+  };
+  flattenPerformance = function(rows){
+    return rows.map(r=>{const m=r._metric||entityMetric(r);return {...r,metric:metricDef().label,metric_this:m.this,metric_last:m.last,difference:m.diff,growth_pct:m.growth,status:statusLabel(m.status)};});
+  };
+  clearGlobalFilters = function(){
+    DASHBOARD_MULTI_KEYS_V3.forEach(key=>state.multi[key]=[]);
+    Object.assign(state,{regional:ALL,zone:ALL,outlet:ALL,division:ALL,cat01:ALL,cat03:ALL,viewStatus:ALL});
+    state.tableState={};renderAll();
+  };
+
+  function salesGrowthRowsV3(level){return aggregateHierarchyV3(level,'sales',false).map(r=>({...r,_sales:r._metric}));}
+  function salesGrowthColumnsV3(level){
+    const cols=[];
+    if(level==='region')cols.push({key:'regional_id',label:'Regional ID'},{key:'regional_name',label:'Regional Head'});
+    else cols.push({key:'regional_name',label:'Regional Head'},{key:'zonal_id',label:'Zonal ID'},{key:'zonal_name',label:'Zonal Name'});
+    cols.push(
+      {key:'active_outlet_count',label:'Active Outlets',type:'number',value:r=>r.active_outlet_count??0},
+      {key:'performance_outlet_count',label:'Sales-covered',type:'number',value:r=>r.performance_outlet_count??0},
+      {key:'outlet_count',label:'Total Outlets',type:'number',value:r=>r.outlet_count??0},
+      {key:'sales_this',label:'Sales This',type:'number',value:r=>r._sales.this,render:r=>money(r._sales.this)},
+      {key:'sales_last',label:'Sales Last',type:'number',value:r=>r._sales.last,render:r=>money(r._sales.last)},
+      {key:'sales_difference',label:'Difference',type:'number',value:r=>r._sales.diff,render:r=>`<span class="${r._sales.diff<0?'bad':r._sales.diff>0?'good':''}">${esc(money(r._sales.diff))}</span>`},
+      {key:'sales_growth',label:'Sales Growth %',type:'number',value:r=>r._sales.growth,render:r=>r._sales.last===0&&r._sales.this!==0?'—':(r._sales.growth==null?'—':`${num(r._sales.growth).toFixed(2)}%`)},
+      {key:'sales_status',label:'Status',value:r=>statusLabel(r._sales.status),render:r=>statusBadge(r._sales.status)}
+    );
+    return cols;
+  }
+  renderExecutive = function(){
+    const m=selectedMetric();
+    const c=performanceCounts();
+    const currentCls=m.status==='degrowth'||m.status==='inactive'?'bad':m.status==='growth'||m.status==='new'?'good':'';
+    const allRows=aggregateHierarchyV3('outlet',state.metric,false);
+    const growing=allRows.filter(r=>r._metric.status==='growth').sort((a,b)=>b._metric.diff-a._metric.diff).slice(0,10);
+    const falling=allRows.filter(r=>r._metric.status==='degrowth'||r._metric.status==='inactive').sort((a,b)=>a._metric.diff-b._metric.diff).slice(0,10);
+    const fallback=state.data.meta?.package_note?`<div class="notice warning" style="margin-bottom:16px"><strong>Data refresh required.</strong> ${esc(state.data.meta.package_note)}</div>`:'';
+    const regionalRows=salesGrowthRowsV3('region');
+    const zonalRows=salesGrowthRowsV3('zone');
+    return `${fallback}
+      <div class="grid kpi-grid">
+        ${kpiCard(`${metricDef().label} This`,formatMetric(m.this),`Current selected scope · ${statusBadge(m.status)}`,currentCls)}
+        ${kpiCard(`${metricDef().label} Last`,formatMetric(m.last),m.last===0?'No last-year base in the selected scope':'Comparable last-year value')}
+        ${kpiCard('Difference',formatMetric(m.diff),'Absolute change from last year',m.diff<0?'bad':m.diff>0?'good':'')}
+        ${kpiCard('Growth %',pct(m.growth),m.last===0&&m.this!==0?'Not calculated: last-year value is zero':'Difference ÷ absolute last-year value',m.growth<0?'bad':m.growth>0?'good':'')}
+      </div>
+      <div class="grid two-col">
+        <section class="card"><div class="card-head"><div><h2>Performance Summary</h2><p>Counts use every outlet in the Zone Distribution master for the selected hierarchy.</p></div></div>
+          <div class="summary-grid">
+            ${summaryTile('Active Outlets',c.active,'Master operational status')}
+            ${summaryTile('Sales-covered Outlets',c.withData,'Has current/last performance')}
+            ${summaryTile('Total Master Outlets',c.total,'All mapped outlets')}
+            ${summaryTile('Growing',c.growth,`<button class="btn btn-small btn-secondary" data-action="view-status" data-status="growth">View all</button>`)}
+            ${summaryTile('De-growing',c.degrowth+c.inactive,`<button class="btn btn-small btn-secondary" data-action="view-status" data-status="degrowth">View all</button>`)}
+            ${summaryTile('New (LY=0)',c.new,`<button class="btn btn-small btn-secondary" data-action="view-status" data-status="new">View all</button>`)}
+          </div>
+          <div class="card-pad" style="padding-top:0"><div class="notice">When <strong>Sales Last = 0</strong> and current sales are positive, the outlet/SKU is classified as <strong>New (LY=0)</strong>. The percentage is deliberately blank because division by zero is undefined; the absolute difference still equals current sales.</div></div>
+        </section>
+        <section class="card"><div class="card-head"><div><h2>Network Coverage</h2><p>Master hierarchy versus processed sales coverage.</p></div></div>${coveragePanel()}</section>
+      </div>
+      <div style="height:16px"></div>
+      ${tableCard('executive-regional-sales-growth','Sales Growth % by Regional Head','All Regional Heads from the July zone-distribution master. Active filters are applied and master leaders remain visible even when sales are zero.',salesGrowthColumnsV3('region'),regionalRows,{sortKey:'sales_growth',sortDir:'desc'})}
+      <div style="height:16px"></div>
+      ${tableCard('executive-zonal-sales-growth','Sales Growth % by Zonal Name','All zones from the July zone-distribution master. Active filters are applied and master zones remain visible even when sales are zero.',salesGrowthColumnsV3('zone'),zonalRows,{sortKey:'sales_growth',sortDir:'desc'})}
+      <div class="grid equal-col" style="margin-top:16px">
+        ${barPanel('Top Growing Outlets',growing,false,'growth')}
+        ${barPanel('Largest De-growth Outlets',falling,true,'degrowth')}
+      </div>`;
+  };
+
+  document.addEventListener('click',event=>{
+    const apply=event.target.closest('[data-multi-apply]');
+    if(apply){
+      event.preventDefault();event.stopPropagation();
+      const key=apply.dataset.multiApply,details=apply.closest('[data-filter-details]');
+      state.multi[key]=unique([...details.querySelectorAll('.sidebar-filter-option input:checked')].map(x=>String(x.value)));
+      reconcileSelectionsV3(key);state.tableState={};renderAll();return;
+    }
+    const clear=event.target.closest('[data-multi-clear]');
+    if(clear){event.preventDefault();event.stopPropagation();const key=clear.dataset.multiClear;state.multi[key]=[];reconcileSelectionsV3(key);state.tableState={};renderAll();return;}
+    const visible=event.target.closest('[data-multi-visible]');
+    if(visible){event.preventDefault();event.stopPropagation();const details=visible.closest('[data-filter-details]');details.querySelectorAll('.sidebar-filter-option:not([hidden]) input').forEach(input=>input.checked=visible.dataset.multiVisible==='all');return;}
+  });
+  document.addEventListener('input',event=>{
+    if(!event.target.matches('[data-multi-search]'))return;
+    const q=event.target.value.trim().toLowerCase(),details=event.target.closest('[data-filter-details]');
+    details.querySelectorAll('.sidebar-filter-option').forEach(option=>option.hidden=Boolean(q&&!String(option.dataset.optionSearch||'').includes(q)));
+  });
 
   document.addEventListener('click', event => {
     const nav=event.target.closest('[data-nav]'); if(nav){state.page=nav.dataset.nav;state.viewStatus=ALL;renderAll();return;}
