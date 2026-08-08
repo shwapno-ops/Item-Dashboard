@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111827">
   <title>Shwapno Item Performance Dashboard</title>
-  <link rel="stylesheet" href="assets/css/styles.css?v=executive-sidebar-multifilter-20260806-v3">
+  <link rel="stylesheet" href="assets/css/styles.css?v=searchable-filters-20260808-v1">
+  <link rel="stylesheet" href="assets/css/filter-search-fix.css?v=searchable-filters-20260808-v1">
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -15,15 +16,11 @@
         <div><strong>Shwapno</strong><span>Item Dashboard</span></div>
       </div>
       <nav id="nav" class="nav"></nav>
-      <div class="sidebar-filter-heading"><strong>Filters</strong></div>
-      <section id="filterBar" class="filter-bar sidebar-filter-bar" aria-label="Dashboard filters"></section>
-
       <div class="sidebar-foot">
         <div id="dataStamp">Loading data…</div>
         <button id="refreshData" class="btn btn-ghost btn-full" type="button">Refresh dashboard</button>
       </div>
     </aside>
-
     <main class="main">
       <header class="topbar">
         <div>
@@ -36,7 +33,8 @@
           <button id="exportCurrent" class="btn btn-primary" type="button">Export current table</button>
         </div>
       </header>
-<section id="content" class="content" aria-live="polite">
+      <section id="filterBar" class="filter-bar" aria-label="Dashboard filters"></section>
+      <section id="content" class="content" aria-live="polite">
         <div class="loading-card"><div class="spinner"></div><p>Loading processed dashboard data…</p></div>
       </section>
     </main>
@@ -44,6 +42,7 @@
 
   <div id="filterPopover" class="filter-popover" hidden></div>
   <div id="toast" class="toast" hidden></div>
-  <script src="assets/js/app.js?v=executive-sidebar-multifilter-20260806-v3" defer></script>
+  <script src="assets/js/app.js?v=searchable-filters-20260808-v1" defer></script>
+  <script src="assets/js/filter-search-fix.js?v=searchable-filters-20260808-v1" defer></script>
 </body>
 </html>
