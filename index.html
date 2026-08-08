@@ -6,16 +6,23 @@
   <meta name="theme-color" content="#111827">
   <meta name="description" content="Shwapno Item Performance Dashboard for Regional, Zonal, Outlet, Category and SKU performance analysis.">
   <title>Shwapno Item Performance Dashboard</title>
-  <link rel="stylesheet" href="assets/css/styles.css?v=polished-searchable-filters-20260808-v4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=sidebar-filters-20260808-v5">
 </head>
 <body>
   <div id="app" class="app-shell">
-    <aside class="sidebar" aria-label="Dashboard navigation">
+    <aside class="sidebar" aria-label="Dashboard navigation and filters">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">S</div>
         <div><strong>Shwapno</strong><span>Item Dashboard</span></div>
       </div>
+
       <nav id="nav" class="nav" aria-label="Dashboard pages"></nav>
+
+      <div class="sidebar-filter-heading">
+        <strong>Filters</strong>
+      </div>
+      <section id="filterBar" class="filter-bar sidebar-filter-bar" aria-label="Dashboard filters"></section>
+
       <div class="sidebar-foot">
         <div id="dataStamp">Loading data…</div>
         <button id="refreshData" class="btn btn-ghost btn-full" type="button">Refresh dashboard</button>
@@ -35,8 +42,6 @@
         </div>
       </header>
 
-      <section id="filterBar" class="filter-bar" aria-label="Dashboard filters"></section>
-
       <section id="content" class="content" aria-live="polite">
         <div class="loading-card">
           <div class="spinner" aria-hidden="true"></div>
@@ -49,9 +54,7 @@
   <div id="filterPopover" class="filter-popover" hidden></div>
   <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
 
-  <!-- Existing dashboard engine: calculations, tables, export and hierarchy logic. -->
-  <script src="assets/js/app.js?v=polished-searchable-filters-20260808-v4" defer></script>
-  <!-- Integrated UX controller: searchable dashboard filters. -->
-  <script src="assets/js/searchable-filters.js?v=polished-searchable-filters-20260808-v4" defer></script>
+  <script src="assets/js/app.js?v=sidebar-filters-20260808-v5" defer></script>
+  <script src="assets/js/searchable-filters.js?v=sidebar-filters-20260808-v5" defer></script>
 </body>
 </html>
